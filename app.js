@@ -445,6 +445,10 @@ const transactionOuvrierField = document.getElementById("transaction-ouvrier-fie
 const transactionMateriauField = document.getElementById("transaction-materiau-field");
 const transactionOuvrierSelect = document.getElementById("transaction-ouvrier");
 const transactionMateriauSelect = document.getElementById("transaction-materiau");
+const btnToggleImprevus = document.getElementById("btn-toggle-imprevus");
+const imprevusPanel = document.getElementById("imprevus-panel");
+const imprevusList = document.getElementById("imprevus-list");
+const imprevusTotalPill = document.getElementById("imprevus-total-pill");
 
 const transactionsTbody = document.getElementById("transactions-tbody");
 const transactionsCountChip = document.getElementById("transactions-count-chip");
@@ -1408,6 +1412,9 @@ transactionForm.addEventListener("submit",(e)=>{
     t.cibleType = "materiau_credit";
     t.cibleId = matId;
     t.description = note || `Remboursement du matériau à crédit : ${m.nom}`;
+  }else if(type === "depense_imprevue"){
+    t.cibleType = "imprevu";
+    t.description = note || "Dépense imprévue";
   }else{
     t.cibleType = "autre";
     t.description = note || "Dépense diverse";
@@ -1423,11 +1430,52 @@ transactionForm.addEventListener("submit",(e)=>{
   renderOuvriers();
   renderMateriaux();
   renderTransactions();
+  renderImprevus();
   renderBudgetStats();
   renderInventory();
   addLog(`Enregistrement d’une transaction de type « ${t.type} ».`);
   alert("Transaction enregistrée avec succès.");
 });
+
+function renderImprevus(){
+  if(!imprevusList || !imprevusTotalPill) return;
+  const items = (!currentData ? [] : (currentData.transactions||[]).filter(t=>t.type === "depense_imprevue"));
+  const total = items.reduce((sum,t)=> sum + (t.montant||0), 0);
+  imprevusTotalPill.textContent = `Total imprévus : ${formatAmount(total)}`;
+
+  imprevusList.innerHTML = "";
+  if(!items.length){
+    imprevusList.innerHTML = '<div class="imprevu-empty">Aucune dépense imprévue enregistrée.</div>';
+    return;
+  }
+
+  const sorted = items.slice().sort((a,b)=>{
+    if(a.date === b.date) return 0;
+    return a.date > b.date ? -1 : 1;
+  });
+
+  sorted.forEach(t=>{
+    const div = document.createElement("div");
+    div.className = "imprevu-item";
+    div.innerHTML = `
+      <div>
+        <div>${t.description || "Dépense imprévue"}</div>
+        <div class="imprevu-meta">${t.date || "Date inconnue"}</div>
+      </div>
+      <div class="imprevu-amount">${formatAmount(t.montant||0)}</div>
+    `;
+    imprevusList.appendChild(div);
+  });
+}
+if(btnToggleImprevus){
+  btnToggleImprevus.addEventListener("click", ()=>{
+    if(!imprevusPanel) return;
+    imprevusPanel.classList.toggle("hidden");
+    const isHidden = imprevusPanel.classList.contains("hidden");
+    btnToggleImprevus.textContent = isHidden ? "Dépenses imprévues" : "Masquer les imprévus";
+    if(!isHidden) renderImprevus();
+  });
+}
 
 /**********************
  * Historique + filtres
@@ -1456,6 +1504,7 @@ function applyTransactionFilters(list){
   });
 }
 function renderTransactions(){
+  renderImprevus();
   transactionsTbody.innerHTML = "";
   if(!currentData || !currentData.transactions.length){
     transactionsTbody.innerHTML =
@@ -1476,6 +1525,7 @@ function renderTransactions(){
       case "tranche_ouvrier": label="Tranche ouvrier"; break;
       case "remboursement_credit": label="Remboursement crédit"; break;
       case "paiement_materiau_comptant": label="Matériau comptant"; break;
+      case "depense_imprevue": label="Dépense imprévue"; break;
       default: label="Dépense diverse";
     }
     const tr = document.createElement("tr");
@@ -1556,6 +1606,7 @@ btnExportPDF.addEventListener("click", ()=>{
     const label = (t.type==="tranche_ouvrier")?"Tranche ouvrier":
                   (t.type==="remboursement_credit")?"Remboursement crédit":
                   (t.type==="paiement_materiau_comptant")?"Matériau comptant":
+                  (t.type==="depense_imprevue")?"Dépense imprévue":
                   "Dépense";
     doc.text(`${t.date||"-"}  [${label}]  ${t.description||""}  -  ${formatAmount(t.montant||0)}`, 10, y);
     y+=5;
@@ -1622,6 +1673,7 @@ btnExportExcel.addEventListener("click", ()=>{
     const label = (t.type==="tranche_ouvrier")?"Tranche ouvrier":
                   (t.type==="remboursement_credit")?"Remboursement crédit":
                   (t.type==="paiement_materiau_comptant")?"Matériau comptant":
+                  (t.type==="depense_imprevue")?"Dépense imprévue":
                   "Dépense diverse";
     txData.push([t.date||"", label, t.description||"", t.montant||0]);
   });

@@ -484,6 +484,7 @@
                   <select id="transaction-type">
                     <option value="tranche_ouvrier">Tranche pour un ouvrier</option>
                     <option value="remboursement_credit">Remboursement d’un matériau à crédit</option>
+                    <option value="depense_imprevue">Dépense imprévue</option>
                     <option value="depense_autre">Autre dépense directe du budget</option>
                   </select>
                 </div>
@@ -524,6 +525,16 @@
               <div class="hint">
                 Chaque transaction diminue le budget disponible et ajuste le solde de l’ouvrier ou de la dette.
               </div>
+
+              <div class="imprevus-toolbar">
+                <button type="button" class="btn btn-ghost" id="btn-toggle-imprevus">
+                  Dépenses imprévues
+                </button>
+                <div class="chip chip-accent" id="imprevus-total-pill">Total imprévus : 0 FCFA</div>
+              </div>
+              <div id="imprevus-panel" class="imprevus-panel hidden">
+                <div class="imprevus-list" id="imprevus-list"></div>
+              </div>
             </form>
           </div>
 
@@ -549,6 +560,7 @@
                   <option value="tranche_ouvrier">Tranche ouvrier</option>
                   <option value="remboursement_credit">Remboursement crédit</option>
                   <option value="paiement_materiau_comptant">Matériau comptant</option>
+                  <option value="depense_imprevue">Dépense imprévue</option>
                   <option value="depense_autre">Dépense diverse</option>
                 </select>
               </div>
