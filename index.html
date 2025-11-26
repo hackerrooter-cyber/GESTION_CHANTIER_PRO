@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Gestion de Chantier — Version Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Chart.js pour les graphiques d’inventaire -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+  <!-- jsPDF pour l’export PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- SheetJS pour l’export Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- JSZip pour ZIP (exports globaux) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="brand">
+        <div class="logo">C</div>
+        <div>
+          <h1>Console de gestion de chantier</h1>
+          <div class="subtitle">
+            Outil complet de suivi des budgets, matériaux, ouvriers, dettes, transactions et inventaires, par chantier.
+          </div>
+        </div>
+      </div>
+      <div class="pill">
+        <span class="key">Local</span>
+        <span>Données enregistrées dans votre navigateur, par identifiant.</span>
+      </div>
+    </header>
+
+    <div class="status-banner">
+      <div class="status-item">
+        <div class="status-label">Standard pro</div>
+        <div class="status-value">Suivi budget, équipes, stocks</div>
+      </div>
+      <div class="status-item">
+        <div class="status-label">Sauvegarde</div>
+        <div class="status-value">Export PDF &amp; Excel en un clic</div>
+      </div>
+      <div class="status-item">
+        <div class="status-label">Confiance</div>
+        <div class="status-value">Visibilité temps réel par chantier</div>
+      </div>
+    </div>
+
+    <!-- VUE AUTHENTIFICATION -->
+    <section id="auth-view" class="active">
+      <div class="auth-grid">
+        <div class="auth-layout card">
+          <div class="card-header">
+            <div>
+              <div class="card-title" id="auth-title">Connexion à l’espace chantier</div>
+              <div class="card-sub" id="auth-subtitle">
+                Saisissez vos identifiants pour accéder à votre tableau de bord.
+              </div>
+            </div>
+          </div>
+
+          <form id="auth-form">
+            <div class="field">
+              <label for="auth-username">Identifiant</label>
+              <input id="auth-username" type="text" required placeholder="Ex. chef.chantier" />
+            </div>
+            <div class="field password-field" style="margin-top:8px;">
+              <label for="auth-password">Mot de passe</label>
+              <div class="password-wrapper">
+                <input id="auth-password" type="password" required placeholder="Mot de passe" />
+                <button type="button" class="btn btn-ghost password-toggle" id="toggle-password-visibility">
+                  Afficher
+                </button>
+              </div>
+            </div>
+            <div class="field password-field" id="auth-password-confirm-field">
+              <label for="auth-password-confirm">Confirmer le mot de passe</label>
+              <div class="password-wrapper">
+                <input id="auth-password-confirm" type="password" placeholder="Répétez le mot de passe" />
+                <button type="button" class="btn btn-ghost password-toggle" id="toggle-password-confirm-visibility">
+                  Afficher
+                </button>
+              </div>
+            </div>
+            <div class="field" id="auth-role-field">
+              <label for="auth-role">Rôle du compte</label>
+              <select id="auth-role">
+                <option value="admin">Administrateur</option>
+                <option value="visitor">Visiteur (consultation limitée)</option>
+              </select>
+            </div>
+            <div class="field hidden" id="auth-register-guard-field">
+              <label for="auth-register-guard">Mot de passe d’activation</label>
+              <input
+                id="auth-register-guard"
+                type="password"
+                placeholder="Défini par un administrateur"
+              />
+              <div class="hint" id="auth-register-guard-hint">
+                Saisissez le mot de passe transmis par un administrateur pour créer un compte.
+              </div>
+            </div>
+            <div class="hint" style="margin-top:6px;">
+              L’authentification est purement locale (stockage dans ce navigateur).
+              À ne pas utiliser pour des données réellement sensibles.
+            </div>
+            <div class="auth-actions">
+              <button type="submit" class="btn btn-accent" id="auth-submit-btn">
+                Se connecter
+              </button>
+              <div class="auth-toggle" id="auth-toggle-text">
+                Pas encore de compte ?
+                <button type="button" id="toggle-auth-mode">Créer un compte</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="card auth-benefits">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Une console prête pour le terrain</div>
+              <div class="card-sub">Rassurez vos équipes avec un récapitulatif clair, des exports immédiats et une gouvernance simplifiée.</div>
+            </div>
+          </div>
+          <ul>
+            <li><span>✓</span> Séparation stricte des chantiers avec verrouillage lecture seule.</li>
+            <li><span>✓</span> Historique interne pour tracer chaque décision.</li>
+            <li><span>✓</span> Inventaire graphique des matériaux payés vs. restant.</li>
+            <li><span>✓</span> Tableau de bord budgétaire prêt pour les comités.</li>
+          </ul>
+          <div class="pill muted">Fonctionne hors ligne, sans serveur externe.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VUE APPLICATION -->
+    <section id="app-view">
+      <div class="top-bar">
+        <div class="top-left">
+          <div class="chip" id="current-user-chip">
+            Connecté en tant que <strong id="current-username"></strong>
+            <span class="role-pill" id="current-role"></span>
+          </div>
+          <div class="project-bar">
+            <label for="chantier-select">Chantier actif :</label>
+            <select id="chantier-select"></select>
+            <button class="btn btn-ghost" id="btn-new-chantier" data-requires-admin="true">Nouveau chantier</button>
+            <button class="btn btn-ghost btn-danger-soft" id="btn-delete-chantier" data-requires-admin="true">
+              Supprimer ce chantier
+            </button>
+            <span id="chantier-lock-chip" class="chip chip-danger hidden">
+              Chantier verrouillé (lecture seule)
+            </span>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="btn btn-ghost" id="btn-inventory">Inventaire</button>
+          <button class="btn btn-ghost" id="btn-settings">⚙ Paramètres</button>
+          <button class="btn btn-ghost" id="btn-export-pdf">Exporter en PDF</button>
+          <button class="btn btn-ghost" id="btn-export-excel">Exporter en Excel</button>
+          <button class="btn btn-ghost" id="logout-btn">Se déconnecter</button>
+        </div>
+      </div>
+
+      <div class="insight-row">
+        <div class="insight-card budget-card">
+          <div class="insight-label">Budget déclaré</div>
+          <div class="insight-currency-stack">
+            <div class="insight-value" id="kpi-budget-initial">0 FCFA</div>
+            <div class="insight-sar-line">
+              <span class="insight-sar-amount" id="kpi-budget-initial-sar">Taux SAR à définir</span>
+              <span class="pill sar-rate-pill" id="sar-rate-chip">Taux SAR non défini</span>
+            </div>
+          </div>
+          <div class="insight-meta">Référence actualisée pour le chantier.</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-label">Dépenses engagées</div>
+          <div class="insight-value" id="kpi-depenses">0 FCFA</div>
+          <div class="insight-meta">Inclut tranches ouvriers et achats.</div>
+        </div>
+        <div class="insight-card highlight">
+          <div class="insight-label">Solde disponible</div>
+          <div class="insight-value" id="kpi-solde">0 FCFA</div>
+          <div class="insight-meta">Calcule automatique des restes à engager.</div>
+        </div>
+        <div class="insight-card danger-soft">
+          <div class="insight-label">Dettes fournisseurs</div>
+          <div class="insight-value" id="kpi-dettes">0 FCFA</div>
+          <div class="insight-meta">Montants restants sur les achats à crédit.</div>
+        </div>
+      </div>
+
+      <!-- VUE TABLEAU DE BORD -->
+      <div class="grid-main" id="dashboard-view">
+        <!-- Colonne gauche -->
+        <div class="col-left">
+          <!-- BUDGET -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Budget global du chantier</div>
+                <div class="card-sub">
+                  Définissez le budget de référence, suivez les dépenses et les dettes fournisseurs.
+                </div>
+              </div>
+            </div>
+            <form id="budget-form">
+              <div class="field-row">
+                <div class="field">
+                  <label for="budget-initial">Budget initial (FCFA)</label>
+                  <input id="budget-initial" type="number" min="0" step="1" placeholder="Ex. 2 000 000" />
+                </div>
+                <div class="field">
+                  <label for="budget-note">Note interne (facultatif)</label>
+                  <input id="budget-note" type="text" placeholder="Ex. Budget donateur, phase 1" />
+                </div>
+              </div>
+              <button type="submit" class="btn btn-accent" data-requires-admin="true">
+                Mettre à jour le budget de référence
+              </button>
+            </form>
+
+            <div class="stats-row">
+              <div class="stat">
+                <div class="stat-label">Budget initial déclaré</div>
+                <div class="stat-value" id="stat-budget-initial">0 FCFA</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Budget initial (SAR)</div>
+                <div class="stat-value" id="stat-budget-initial-sar">Définir un taux SAR</div>
+                <div class="stat-note" id="stat-sar-rate-note">Taux SAR non défini</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Dépenses effectivement payées</div>
+                <div class="stat-value" id="stat-depenses">0 FCFA</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Solde disponible estimé</div>
+                <div class="stat-value" id="stat-solde">0 FCFA</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Total des dettes (matériaux à crédit)</div>
+                <div class="stat-value" id="stat-dettes">0 FCFA</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MATÉRIAUX & OUVRIERS -->
+          <div class="card section-card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Matériaux & main-d’œuvre</div>
+                <div class="card-sub">
+                  Enregistrez toutes les entrées de matériaux et les engagements avec les ouvriers.
+                </div>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <button type="button" class="tab active" data-tab="materiaux">Matériaux</button>
+              <button type="button" class="tab" data-tab="ouvriers">Ouvriers / manœuvres</button>
+            </div>
+
+            <!-- MATÉRIAUX -->
+            <div id="tab-materiaux" class="tab-panel">
+              <form id="materiau-form">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="materiau-nom">Intitulé du matériau</label>
+                    <input
+                      id="materiau-nom"
+                      type="text"
+                      required
+                      list="materiau-nom-options"
+                      placeholder="Ex. Ciment, sable, fer à béton…"
+                    />
+                    <datalist id="materiau-nom-options">
+                      <option value="Ciment"></option>
+                      <option value="Sable"></option>
+                      <option value="Gravier"></option>
+                      <option value="Eau"></option>
+                      <option value="Fer à béton"></option>
+                      <option value="Parpaing"></option>
+                      <option value="Brique"></option>
+                      <option value="Bois"></option>
+                      <option value="Tôle / Zinc"></option>
+                      <option value="Fil électrique"></option>
+                      <option value="Tuyaux PVC"></option>
+                      <option value="Peinture"></option>
+                      <option value="Enduit"></option>
+                      <option value="Carrelage"></option>
+                      <option value="Colle carrelage"></option>
+                      <option value="Chevrons"></option>
+                      <option value="Plâtre"></option>
+                      <option value="Clous / Vis"></option>
+                      <option value="Treillis soudé"></option>
+                      <option value="Tasseaux"></option>
+                      <option value="Béton prêt à l'emploi"></option>
+                      <option value="Agrégats"></option>
+                      <option value="Gravillons"></option>
+                      <option value="Bâches"></option>
+                    </datalist>
+                  </div>
+                  <div class="field">
+                    <label for="materiau-montant">Montant total (FCFA)</label>
+                    <input
+                      id="materiau-montant"
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
+                      placeholder="Ex. 150 000"
+                    />
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field">
+                    <label for="materiau-credit">Mode de paiement</label>
+                    <select id="materiau-credit" required>
+                      <option value="comptant">Payé comptant</option>
+                      <option value="credit">Achat à crédit</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="materiau-date">Date de l’opération</label>
+                    <input id="materiau-date" type="date" required />
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field">
+                    <label for="materiau-quantite">Quantité</label>
+                    <input
+                      id="materiau-quantite"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      placeholder="Ex. 50"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="materiau-categorie">Catégorie / métier concerné</label>
+                    <input
+                      id="materiau-categorie"
+                      type="text"
+                      required
+                      list="materiau-categorie-options"
+                      placeholder="Ex. Maçonnerie, Électricité…"
+                    />
+                    <datalist id="materiau-categorie-options">
+                      <option value="Maçonnerie"></option>
+                      <option value="Électricité"></option>
+                      <option value="Électricité / Plomberie"></option>
+                      <option value="Plomberie"></option>
+                      <option value="Menuiserie"></option>
+                      <option value="Ferraillage"></option>
+                      <option value="Badigeonnage"></option>
+                      <option value="Carrelage"></option>
+                      <option value="Terrassement"></option>
+                      <option value="Fondations"></option>
+                      <option value="Finitions"></option>
+                    </datalist>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-accent" data-requires-admin="true">
+                  Enregistrer le matériau
+                </button>
+                <div class="hint">
+                  Un matériau <strong>à crédit</strong> crée une dette. Le coût utilisé dans l’inventaire
+                  correspond aux montants effectivement payés.
+                </div>
+              </form>
+              <div class="list" id="materiaux-list"></div>
+            </div>
+
+            <!-- OUVRIERS -->
+            <div id="tab-ouvriers" class="tab-panel hidden">
+              <form id="ouvrier-form">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="ouvrier-nom">Nom de l’ouvrier</label>
+                    <input
+                      id="ouvrier-nom"
+                      type="text"
+                      required
+                      placeholder="Ex. Ali, Issa…"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="ouvrier-metier">Métier</label>
+                    <input
+                      id="ouvrier-metier"
+                      type="text"
+                      required
+                      list="ouvrier-metier-options"
+                      placeholder="Ex. Maçon, électricien, plombier…"
+                    />
+                    <datalist id="ouvrier-metier-options">
+                      <option value="Maçon"></option>
+                      <option value="Électricien"></option>
+                      <option value="Plombier"></option>
+                      <option value="Électricien / Plombier"></option>
+                      <option value="Peintre"></option>
+                      <option value="Carreleur"></option>
+                      <option value="Menuisier"></option>
+                      <option value="Ferrailleur"></option>
+                      <option value="Ouvrier"></option>
+                      <option value="Terrassier"></option>
+                      <option value="Chef de chantier"></option>
+                    </datalist>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label for="ouvrier-montant">Somme globale convenue (FCFA)</label>
+                    <input
+                      id="ouvrier-montant"
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="ouvrier-date">Date de début</label>
+                    <input id="ouvrier-date" type="date" required />
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-accent" data-requires-admin="true">
+                  Ajouter l’ouvrier
+                </button>
+                <div class="hint">
+                  Le montant versé diminuera ensuite par <strong>tranches</strong> dans les transactions.
+                </div>
+              </form>
+              <div class="filter-row">
+                <label for="filter-metier">Filtrer par métier</label>
+                <select id="filter-metier">
+                  <option value="">Tous les métiers</option>
+                </select>
+              </div>
+              <div class="list" id="ouvriers-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Colonne droite -->
+        <div class="col-right">
+          <!-- TRANSACTIONS -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Transactions et paiements</div>
+                <div class="card-sub">
+                  Tranches versées aux ouvriers, remboursements de dettes fournisseurs, autres dépenses directes.
+                </div>
+              </div>
+            </div>
+            <form id="transaction-form">
+              <div class="field-row">
+                <div class="field">
+                  <label for="transaction-type">Type d’opération</label>
+                  <select id="transaction-type">
+                    <option value="tranche_ouvrier">Tranche pour un ouvrier</option>
+                    <option value="remboursement_credit">Remboursement d’un matériau à crédit</option>
+                    <option value="depense_autre">Autre dépense directe du budget</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="transaction-montant">Montant (FCFA)</label>
+                  <input id="transaction-montant" type="number" min="0" step="1" required />
+                </div>
+              </div>
+
+              <div class="field-row" id="transaction-cible-row">
+                <div class="field" id="transaction-ouvrier-field">
+                  <label for="transaction-ouvrier">Ouvrier concerné</label>
+                  <select id="transaction-ouvrier">
+                    <option value="">Sélectionner un ouvrier…</option>
+                  </select>
+                </div>
+                <div class="field hidden" id="transaction-materiau-field">
+                  <label for="transaction-materiau">Matériau à crédit</label>
+                  <select id="transaction-materiau">
+                    <option value="">Sélectionner un matériau à crédit…</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="transaction-date">Date de la transaction</label>
+                  <input id="transaction-date" type="date" required />
+                </div>
+                <div class="field">
+                  <label for="transaction-note">Description</label>
+                  <input id="transaction-note" type="text" placeholder="Ex. 1ère tranche maçon, acompte fournisseur…" />
+                </div>
+              </div>
+              <button type="submit" class="btn btn-accent" data-requires-admin="true">
+                Enregistrer la transaction
+              </button>
+              <div class="hint">
+                Chaque transaction diminue le budget disponible et ajuste le solde de l’ouvrier ou de la dette.
+              </div>
+            </form>
+          </div>
+
+          <!-- HISTORIQUE -->
+          <div class="card section-card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Historique des transactions</div>
+                <div class="card-sub">
+                  Vue filtrable de toutes les opérations financières du chantier.
+                </div>
+              </div>
+              <div class="chip chip-accent" id="transactions-count-chip">
+                0 opération enregistrée
+              </div>
+            </div>
+
+            <div class="filters-grid">
+              <div>
+                <label for="filter-type">Type</label>
+                <select id="filter-type">
+                  <option value="">Tous</option>
+                  <option value="tranche_ouvrier">Tranche ouvrier</option>
+                  <option value="remboursement_credit">Remboursement crédit</option>
+                  <option value="paiement_materiau_comptant">Matériau comptant</option>
+                  <option value="depense_autre">Dépense diverse</option>
+                </select>
+              </div>
+              <div>
+                <label for="filter-ouvrier">Ouvrier</label>
+                <select id="filter-ouvrier">
+                  <option value="">Tous</option>
+                </select>
+              </div>
+              <div>
+                <label for="filter-materiau-transac">Matériau</label>
+                <select id="filter-materiau-transac">
+                  <option value="">Tous</option>
+                </select>
+              </div>
+              <div>
+                <label for="filter-date-min">Date min</label>
+                <input id="filter-date-min" type="date" />
+              </div>
+              <div>
+                <label for="filter-date-max">Date max</label>
+                <input id="filter-date-max" type="date" />
+              </div>
+              <div class="filter-actions">
+                <button type="button" class="btn btn-ghost" id="btn-clear-filters">Réinitialiser</button>
+              </div>
+            </div>
+
+            <div class="list history-list">
+              <table class="transactions-table" id="transactions-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Détail</th>
+                    <th class="amount">Montant (FCFA)</th>
+                  </tr>
+                </thead>
+                <tbody id="transactions-tbody">
+                  <!-- Rempli par app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VUE PARAMÈTRES AVANCÉS -->
+      <div id="settings-view" class="hidden">
+        <div class="settings-grid">
+          <!-- Paramètres du compte -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Paramètres du compte</div>
+                <div class="card-sub">
+                  Gestion de l’identifiant, du mot de passe, de la photo de profil et du thème visuel.
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>Profil</h3>
+              <div class="settings-row">
+                <div class="settings-col">
+                  <div class="label-inline">Identifiant actuel :</div>
+                  <div id="settings-username-display" class="settings-username"></div>
+                </div>
+                <div class="settings-col">
+                  <div class="label-inline">Photo de profil (locale)</div>
+                  <div class="avatar-wrapper">
+                    <div id="avatar-preview" class="avatar-preview"></div>
+                    <input type="file" id="avatar-input" accept="image/*" />
+                  </div>
+                  <div class="hint">La photo est conservée uniquement dans ce navigateur.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>Modifier l’identifiant</h3>
+              <form id="form-change-username">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="new-username">Nouvel identifiant</label>
+                    <input id="new-username" type="text" placeholder="Nouvel identifiant" />
+                  </div>
+                  <div class="field">
+                    <label for="password-for-username">Mot de passe actuel</label>
+                    <input id="password-for-username" type="password" />
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-ghost">
+                  Enregistrer le nouvel identifiant
+                </button>
+              </form>
+            </div>
+
+            <div class="settings-section">
+              <h3>Modifier le mot de passe</h3>
+              <form id="form-change-password">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="old-password">Ancien mot de passe</label>
+                    <input id="old-password" type="password" />
+                  </div>
+                  <div class="field">
+                    <label for="new-password">Nouveau mot de passe</label>
+                    <input id="new-password" type="password" />
+                  </div>
+                  <div class="field">
+                    <label for="new-password-confirm">Confirmation</label>
+                    <input id="new-password-confirm" type="password" />
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-ghost">
+                  Mettre à jour le mot de passe
+                </button>
+              </form>
+            </div>
+
+            <div class="settings-section" id="register-guard-section">
+              <h3>Contrôle de la création de comptes</h3>
+              <form id="form-register-guard">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="register-guard-password">Mot de passe d’activation</label>
+                    <input
+                      id="register-guard-password"
+                      type="password"
+                      placeholder="Mot de passe requis pour créer un compte"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="register-guard-password-confirm">Confirmation</label>
+                    <input
+                      id="register-guard-password-confirm"
+                      type="password"
+                      placeholder="Répétez le mot de passe d’activation"
+                    />
+                  </div>
+                </div>
+                <div class="hint" id="register-guard-status"></div>
+                <div class="actions-row" style="margin-top:8px; gap:8px;">
+                  <button type="submit" class="btn btn-ghost">Enregistrer le mot de passe</button>
+                  <button type="button" class="btn btn-danger-soft" id="btn-clear-register-guard">
+                    Désactiver l’exigence de mot de passe
+                  </button>
+                </div>
+                <div class="hint">
+                  Ce mot de passe est requis pour activer le bouton « Créer un compte » et ne peut être défini que
+                  par un administrateur existant.
+                </div>
+              </form>
+            </div>
+
+            <div class="settings-section">
+              <h3>Taux de change — Riyal saoudien (SAR)</h3>
+              <form id="sar-rate-form">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="sar-rate">Taux en FCFA (1 SAR = n FCFA)</label>
+                    <input
+                      id="sar-rate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Ex. 162.50"
+                      data-requires-admin="true"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="sar-rate-password">Mot de passe administrateur</label>
+                    <input
+                      id="sar-rate-password"
+                      type="password"
+                      placeholder="Requis pour modifier le taux"
+                      data-requires-admin="true"
+                    />
+                  </div>
+                </div>
+                <div class="hint" id="sar-rate-hint">Définissez le taux du jour pour afficher le budget en SAR.</div>
+                <button type="submit" class="btn btn-ghost" data-requires-admin="true">Mettre à jour le taux SAR</button>
+              </form>
+            </div>
+
+            <div class="settings-section">
+              <h3>Thème</h3>
+              <div class="theme-toggle">
+                <span>Style visuel :</span>
+                <button type="button" class="btn btn-ghost" id="btn-theme-dark">Sombre</button>
+                <button type="button" class="btn btn-ghost" id="btn-theme-light">Clair</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gestion des chantiers -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Gestion des chantiers</div>
+                <div class="card-sub">
+                  Renommer, dupliquer, archiver, restaurer, verrouiller ou supprimer un chantier.
+                </div>
+              </div>
+            </div>
+            <div id="settings-chantiers-list" class="list settings-chantiers-list">
+              <!-- Rempli par app.js -->
+            </div>
+          </div>
+
+          <!-- Listes personnalisables -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Listes déroulantes personnalisées</div>
+                <div class="card-sub">
+                  Ajoutez ou retirez des suggestions pour les matériaux, les métiers et les catégories de travaux.
+                </div>
+              </div>
+            </div>
+            <form id="custom-lists-form" class="settings-section">
+              <div class="field">
+                <label for="custom-materials">Matériaux proposés (une ligne par matériau)</label>
+                <textarea id="custom-materials" rows="4" placeholder="Ex. Eau\nPierre\nBéton prêt à l'emploi"></textarea>
+              </div>
+              <div class="field" style="margin-top:8px;">
+                <label for="custom-metiers">Métiers proposés</label>
+                <textarea id="custom-metiers" rows="3" placeholder="Ex. Maçon\nTerrassier\nPeintre"></textarea>
+              </div>
+              <div class="field" style="margin-top:8px;">
+                <label for="custom-categories">Catégories / travaux proposés</label>
+                <textarea id="custom-categories" rows="3" placeholder="Ex. Maçonnerie\nTerrassement\nFinitions"></textarea>
+              </div>
+              <button type="submit" class="btn btn-ghost" style="margin-top:10px;" data-requires-admin="true">Mettre à jour les listes</button>
+              <div class="hint" style="margin-top:6px;">
+                Les listes restent toujours modifiables : les entrées sont ajoutées aux valeurs de base et aux éléments déjà enregistrés.
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Exports globaux & journal</div>
+              <div class="card-sub">
+                Exporter l’ensemble des chantiers et consulter le journal interne des opérations.
+              </div>
+            </div>
+            <div class="settings-export-actions">
+              <button type="button" class="btn btn-ghost" id="btn-export-all-pdf">
+                PDF unique (tous les chantiers)
+              </button>
+              <button type="button" class="btn btn-ghost" id="btn-export-all-zip">
+                ZIP (un PDF par chantier)
+              </button>
+            </div>
+          </div>
+          <div class="settings-logs">
+            <h3>Journal interne</h3>
+            <div id="logs-list" class="list logs-list">
+              <!-- Rempli par app.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VUE INVENTAIRE -->
+      <div id="inventory-view" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Synthèse de l’inventaire du chantier</div>
+              <div class="card-sub">
+                Total des matériaux, de la main-d’œuvre et dépense globale pour le chantier actif.
+              </div>
+            </div>
+          </div>
+          <div class="stats-row">
+            <div class="stat">
+              <div class="stat-label">Total matériaux (dépenses effectuées)</div>
+              <div class="stat-value" id="inv-total-mat">0 FCFA</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Total main-d’œuvre (sommes versées)</div>
+              <div class="stat-value" id="inv-total-ouv">0 FCFA</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Dépense globale (matériaux + main-d’œuvre)</div>
+              <div class="stat-value" id="inv-total-global">0 FCFA</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="inventory-grid">
+          <!-- Inventaire matériaux -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Inventaire des matériaux par catégorie</div>
+                <div class="card-sub">
+                  Regroupe les matériaux par catégorie / métier, avec quantités et coûts.
+                </div>
+              </div>
+            </div>
+            <div class="list">
+              <table class="transactions-table inventory-table">
+                <thead>
+                  <tr>
+                    <th>Catégorie / métier</th>
+                    <th>Matériau</th>
+                    <th>Quantité totale</th>
+                    <th class="amount">Coût des dépenses (FCFA)</th>
+                  </tr>
+                </thead>
+                <tbody id="inv-mat-tbody"></tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px;">
+              <canvas id="inv-mat-chart" height="150"></canvas>
+            </div>
+          </div>
+
+          <!-- Inventaire main-d’œuvre -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Inventaire des ouvriers par métier</div>
+                <div class="card-sub">
+                  Liste les ouvriers par métier et récapitule les montants versés.
+                </div>
+              </div>
+            </div>
+            <div class="list">
+              <table class="transactions-table inventory-table">
+                <thead>
+                  <tr>
+                    <th>Métier</th>
+                    <th>Ouvrier</th>
+                    <th>Versé (FCFA)</th>
+                    <th class="amount">Reste à verser (FCFA)</th>
+                  </tr>
+                </thead>
+                <tbody id="inv-ouv-tbody"></tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px;">
+              <canvas id="inv-ouv-chart" height="150"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Exports de l’inventaire</div>
+              <div class="card-sub">
+                Exporter l’inventaire du chantier actif en PDF ou en Excel.
+              </div>
+            </div>
+            <div class="settings-export-actions">
+              <button type="button" class="btn btn-ghost" id="btn-export-inventory-pdf">
+                PDF inventaire
+              </button>
+              <button type="button" class="btn btn-ghost" id="btn-export-inventory-excel">
+                Excel inventaire
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
