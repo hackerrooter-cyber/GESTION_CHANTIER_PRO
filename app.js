@@ -274,6 +274,7 @@ function loadUserData(username){
           nom: "Chantier 1",
           budgetInitial: 0,
           budgetNote: "",
+          budgetInitialLocked: false,
           materiaux: [],
           ouvriers: [],
           transactions: [],
@@ -310,6 +311,9 @@ function loadUserData(username){
       if(typeof c.archive === "undefined") c.archive = false;
       if(typeof c.verrouille === "undefined") c.verrouille = false;
       if(typeof c.defaut === "undefined") c.defaut = false;
+      if(typeof c.budgetInitialLocked === "undefined"){
+        c.budgetInitialLocked = Number.isFinite(c.budgetInitial) && c.budgetInitial > 0;
+      }
       (c.materiaux || []).forEach(m=>{
         if(typeof m.quantite === "undefined") m.quantite = 1;
         if(typeof m.categorie === "undefined") m.categorie = "";
@@ -391,6 +395,10 @@ const btnInventory = document.getElementById("btn-inventory");
 const budgetForm = document.getElementById("budget-form");
 const budgetInitialInput = document.getElementById("budget-initial");
 const budgetNoteInput = document.getElementById("budget-note");
+const budgetPasswordField = document.getElementById("budget-password-field");
+const budgetPasswordInput = document.getElementById("budget-password");
+const budgetPasswordHint = document.getElementById("budget-password-hint");
+const budgetPasswordNote = document.getElementById("budget-password-note");
 const statBudgetInitial = document.getElementById("stat-budget-initial");
 const statDepenses = document.getElementById("stat-depenses");
 const statSolde = document.getElementById("stat-solde");
@@ -546,6 +554,7 @@ function ensureAtLeastOneChantier(){
       nom: name.trim(),
       budgetInitial: 0,
       budgetNote: "",
+      budgetInitialLocked: false,
       materiaux: [],
       ouvriers: [],
       transactions: [],
@@ -563,6 +572,7 @@ function ensureAtLeastOneChantier(){
       nom: name.trim(),
       budgetInitial: 0,
       budgetNote: "",
+      budgetInitialLocked: false,
       materiaux: [],
       ouvriers: [],
       transactions: [],
@@ -870,6 +880,26 @@ function computeTotals(){
   const solde = Math.max(0,(currentData.budgetInitial||0)-depenses);
   return {depenses,dettes,solde};
 }
+function renderBudgetPasswordGuard(){
+  if(!budgetPasswordField || !budgetPasswordInput || !budgetPasswordHint || !budgetPasswordNote) return;
+  const requiresPassword = currentData && currentData.budgetInitialLocked;
+
+  budgetPasswordField.classList.toggle("hidden", !requiresPassword);
+  if(!requiresPassword){
+    budgetPasswordInput.value = "";
+  }
+  budgetPasswordInput.placeholder = requiresPassword
+    ? "Mot de passe administrateur requis"
+    : "Non requis tant que le budget initial n’est pas enregistré";
+
+  budgetPasswordHint.textContent = requiresPassword
+    ? "Saisissez le mot de passe d’autorisation pour modifier le budget initial."
+    : "Vous pourrez définir le budget initial sans mot de passe, puis toute modification exigera une autorisation.";
+
+  budgetPasswordNote.textContent = requiresPassword
+    ? "La modification du budget initial est protégée : confirmation par mot de passe obligatoire."
+    : "Après l’enregistrement du budget initial, toute modification sera protégée par un mot de passe.";
+}
 function renderBudgetStats(){
   if(!currentData) return;
   const totals = computeTotals();
@@ -909,8 +939,9 @@ function renderBudgetStats(){
   if(kpiDettes) kpiDettes.textContent = dettesFormatted;
   budgetInitialInput.value = currentData.budgetInitial || "";
   budgetNoteInput.value = currentData.budgetNote || "";
+  renderBudgetPasswordGuard();
 }
-budgetForm.addEventListener("submit",(e)=>{
+budgetForm.addEventListener("submit",async (e)=>{
   e.preventDefault();
   if(!currentUser || !currentUserData || !currentData) return;
   if(!requireAdmin("La mise à jour du budget")) return;
@@ -918,14 +949,30 @@ budgetForm.addEventListener("submit",(e)=>{
     alert("Ce chantier est verrouillé. Veuillez le déverrouiller dans les paramètres pour le modifier.");
     return;
   }
+  const requiresPassword = currentData.budgetInitialLocked;
   const val = parseFloat(budgetInitialInput.value);
   if(!Number.isFinite(val) || val<0){
     alert("Veuillez saisir un budget initial valide (montant positif).");
     return;
   }
+  if(requiresPassword){
+    const password = budgetPasswordInput.value;
+    if(!password){
+      alert("Veuillez saisir le mot de passe d’autorisation pour modifier le budget initial.");
+      return;
+    }
+    const record = getCurrentUserRecord();
+    const passwordOk = record ? await verifyPassword(record, password) : false;
+    if(!passwordOk){
+      alert("Mot de passe d’autorisation incorrect.");
+      return;
+    }
+  }
   currentData.budgetInitial = val;
   currentData.budgetNote = budgetNoteInput.value.trim();
+  currentData.budgetInitialLocked = true;
   saveUserData(currentUser,currentUserData);
+  if(budgetPasswordInput) budgetPasswordInput.value = "";
   renderBudgetStats();
   renderInventory();
   addLog(`Mise à jour du budget du chantier « ${currentData.nom || "Sans nom"} ».`);
@@ -1964,6 +2011,7 @@ async function supprimerChantierParId(chantierId){
       nom: defaultName.trim(),
       budgetInitial: 0,
       budgetNote: "",
+      budgetInitialLocked: false,
       materiaux: [],
       ouvriers: [],
       transactions: [],
@@ -2000,6 +2048,7 @@ btnNewChantier.addEventListener("click",()=>{
     nom: name.trim(),
     budgetInitial: 0,
     budgetNote: "",
+    budgetInitialLocked: false,
     materiaux: [],
     ouvriers: [],
     transactions: [],

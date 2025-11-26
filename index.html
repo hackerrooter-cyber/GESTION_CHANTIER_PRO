@@ -210,19 +210,33 @@
             </div>
             <form id="budget-form">
               <div class="field-row">
-                <div class="field">
-                  <label for="budget-initial">Budget initial (FCFA)</label>
-                  <input id="budget-initial" type="number" min="0" step="1" placeholder="Ex. 2 000 000" />
-                </div>
-                <div class="field">
-                  <label for="budget-note">Note interne (facultatif)</label>
-                  <input id="budget-note" type="text" placeholder="Ex. Budget donateur, phase 1" />
-                </div>
+              <div class="field">
+                <label for="budget-initial">Budget initial (FCFA)</label>
+                <input id="budget-initial" type="number" min="0" step="1" placeholder="Ex. 2 000 000" />
               </div>
-              <button type="submit" class="btn btn-accent" data-requires-admin="true">
-                Mettre à jour le budget de référence
-              </button>
-            </form>
+              <div class="field">
+                <label for="budget-note">Note interne (facultatif)</label>
+                <input id="budget-note" type="text" placeholder="Ex. Budget donateur, phase 1" />
+              </div>
+            </div>
+            <div class="field hidden" id="budget-password-field">
+              <label for="budget-password">Mot de passe d’autorisation</label>
+              <input
+                id="budget-password"
+                type="password"
+                placeholder="Mot de passe administrateur requis"
+              />
+              <div class="hint" id="budget-password-hint">
+                Saisissez le mot de passe d’autorisation pour modifier le budget initial.
+              </div>
+            </div>
+            <button type="submit" class="btn btn-accent" data-requires-admin="true">
+              Mettre à jour le budget de référence
+            </button>
+            <div class="hint" id="budget-password-note">
+              Après l’enregistrement du budget initial, toute modification sera protégée par un mot de passe.
+            </div>
+          </form>
 
             <div class="stats-row">
               <div class="stat">
